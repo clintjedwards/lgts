@@ -1,6 +1,25 @@
 package main
 
+import (
+	"fmt"
+	"math/rand"
+	"time"
+)
+
 type message struct {
+	ID    string `json:"id"`
 	AppID string `json:"app_id"`
-	Token string `json:"message_token"` //token sent by client to prevent mimics
+	token string //token sent by client to prevent mimics
+}
+
+func newMessage() *message {
+
+	rand.Seed(time.Now().UTC().UnixNano())
+	id := make([]byte, 7)
+	rand.Read(id)
+
+	return &message{
+		ID: fmt.Sprintf("%x", id),
+	}
+
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha1"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -20,8 +21,10 @@ type lgts struct {
 func newlgts() *lgts {
 
 	return &lgts{
-		Apps:     make(map[string]app),
-		Messages: make(map[string]message),
+		Apps:           make(map[string]app),
+		Messages:       make(map[string]message),
+		ApprovalEmojis: make([]string, 0),
+		RejectEmojis:   make([]string, 0),
 	}
 
 }
@@ -89,39 +92,77 @@ func (lgts *lgts) unregisterApp(appID string) {
 
 func (lgts *lgts) registerMessage(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
-	var messageinfo message
+	var messageInfo struct {
+		ID    string `json:"id"`
+		AppID string `json:"app_id"`
+		Token string `json:"message_token"`
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 
 	decoder := json.NewDecoder(req.Body)
-	err := decoder.Decode(&messageinfo)
+	err := decoder.Decode(&messageInfo)
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(400)
 		json.NewEncoder(w).Encode(struct {
-			Error   string `json:"error"`
+			Ok      bool   `json:"ok"`
 			Message string `json:"message"`
-		}{"invalid parameters", "could not decode json body"})
+			Error   string `json:"error"`
+		}{false, "could not decode json body", fmt.Sprintf("%v", err)})
 		return
 	}
 
-	if messageinfo.AppID == "" || messageinfo.Token == "" {
+	if messageInfo.AppID == "" || messageInfo.Token == "" {
+
 		w.WriteHeader(400)
 		json.NewEncoder(w).Encode(struct {
 			Error   string `json:"error"`
 			Message string `json:"message"`
 		}{"Invalid Parameters", "You must supply both app_id and message_token params"})
-	} else {
+		return
 
-		lgts.Messages[messageinfo.AppID] = messageinfo
+	} else if !lgts.isApplicationRegistered(messageInfo.AppID) {
 
+		log.Println("Application ID not registered")
+		w.WriteHeader(400)
 		json.NewEncoder(w).Encode(struct {
 			Ok      bool   `json:"ok"`
 			Message string `json:"message"`
-		}{true, "Message registered"})
+		}{false, "Application ID not registered"})
+		return
 
-		log.Printf("Message registered from application: %s", messageinfo.AppID)
+	} else {
+		newMessage := *newMessage()
+		newMessage.AppID = messageInfo.AppID
+		newMessage.token = messageInfo.Token
+
+		lgts.Messages[newMessage.ID] = newMessage
+
+		json.NewEncoder(w).Encode(newMessage)
+
+		log.Printf("Message %s registered from application: %s", newMessage.ID, newMessage.AppID)
 	}
+}
+
+func (lgts *lgts) isApplicationRegistered(appID string) bool {
+
+	for apps := range lgts.Apps {
+		if apps == appID {
+			return true
+		}
+	}
+	return false
+}
+
+func getSHA1(args ...string) string {
+	unhashedString := strings.Join(args, "")
+
+	h := sha1.New()
+	h.Write([]byte(unhashedString))
+	hashedString := h.Sum(nil)
+
+	return fmt.Sprintf("%x", hashedString)
 }
 
 func (lgts *lgts) getMessages(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
@@ -131,11 +172,35 @@ func (lgts *lgts) getMessages(w http.ResponseWriter, req *http.Request, _ httpro
 
 func (lgts *lgts) isAuthorizedUser(appID, email string) bool {
 
-	// for _, approvedEmail := range app.AuthorizedApprovers {
-	// 	if approvedEmail == email {
-	// 		return true
-	// 	}
-	// }
-	// return false
+	app := lgts.Apps[appID]
+
+	for _, approvedEmail := range app.AuthorizedApprovers {
+		if approvedEmail == email {
+			return true
+		}
+	}
+	return false
+
+}
+
+func (lgts *lgts) isApprovalEmoji(emoji string) bool {
+
+	for _, approvalEmoji := range lgts.ApprovalEmojis {
+		if approvalEmoji == emoji {
+			return true
+		}
+	}
+	return false
+
+}
+
+func (lgts *lgts) isRejectionEmoji(emoji string) bool {
+
+	for _, rejectEmoji := range lgts.RejectEmojis {
+		if rejectEmoji == emoji {
+			return true
+		}
+	}
+	return false
 
 }

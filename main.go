@@ -13,7 +13,7 @@ func main() {
 
 	lgts := *newlgts()
 	slackToken := os.Getenv("SLACK_TOKEN")
-	go runrtm(slackToken)
+	go runrtm(&lgts, slackToken)
 
 	router.GET("/apps", lgts.getApps)
 	router.POST("/apps", lgts.registerApp)

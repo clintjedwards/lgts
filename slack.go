@@ -58,18 +58,68 @@ func getMessageCallbackInfo(api *slack.Client, messageTimestamp, channel string)
 
 }
 
-func getUser(api *slack.Client, userID string) *user {
+func getUser(api *slack.Client, userID string) (*user, error) {
 	userInfo, err := api.GetUserInfo(userID)
 	if err != nil {
 		log.Printf("%s\n", err)
-		//return user{}
+		return nil, err
 	}
 
-	return &user{userInfo.Profile.RealName, userInfo.Profile.Email}
+	return &user{userInfo.Profile.RealName, userInfo.Profile.Email}, nil
 
 }
 
-func runrtm(slackToken string) {
+func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEvent) {
+
+	userID := event.User
+	channel := event.Item.Channel
+	messageTimestamp := event.Item.Timestamp
+	emojiUsed := event.Reaction
+
+	switch {
+	case lgts.isApprovalEmoji(emojiUsed):
+		//set some stuff here for each case
+	case lgts.isRejectionEmoji(emojiUsed):
+
+	default:
+		return
+	}
+
+	callbackInfo := getMessageCallbackInfo(api, messageTimestamp, channel)
+
+	if _, ok := callbackInfo["message_token"]; !ok {
+		log.Printf("message_token parameter missing from callback id string")
+		return
+	}
+	if _, ok := callbackInfo["app_id"]; !ok {
+		log.Printf("app_id parameter missing from callback id string")
+		return
+	}
+
+	hashedPair := getSHA1(callbackInfo["app_id"].(string), callbackInfo["message_token"].(string))
+	appID := lgts.Messages[hashedPair].AppID
+	app := lgts.Apps[appID]
+	fmt.Println(app)
+
+	userInfo, err := getUser(api, userID)
+	if err != nil {
+		log.Fatalf("Cannot find slack user: %v", err)
+	}
+
+	attachment := generateMessageAttachment(api, messageTimestamp, userInfo.fullName, channel)
+	updateMessage(api, attachment, messageTimestamp, channel)
+
+	if lgts.isAuthorizedUser(callbackInfo["app_id"].(string), userInfo.email) {
+		log.Println(userInfo.email)
+	}
+
+}
+
+// func processApproveOrReject(lgts *lgts, emojiUsed string) {
+
+// }
+
+func runrtm(lgts *lgts, slackToken string) {
 
 	api := slack.New(slackToken)
 	//api.SetDebug(true)
@@ -82,17 +132,8 @@ func runrtm(slackToken string) {
 	for msg := range rtm.IncomingEvents {
 		switch ev := msg.Data.(type) {
 		case *slack.ReactionAddedEvent:
-			userInfo := getUser(api, ev.User)
-			messageTimestamp := ev.Item.Timestamp
-			attachment := generateMessageAttachment(api, messageTimestamp, userInfo.fullName, ev.Item.Channel)
-			updateMessage(api, attachment, messageTimestamp, ev.Item.Channel)
-			// if lgts.isAuthorizedUser(userInfo.email) {
-			// 	log.Println(userInfo.email)
-			// }
+			processDecision(api, lgts, ev)
 
-			//callbackInfo := getMessageCallbackInfo(api, messageTimestamp, ev.Item.Channel)
-
-			//callbackInfo["app_id"]
 		case *slack.RTMError:
 			log.Printf("Error: %s\n", ev.Error())
 

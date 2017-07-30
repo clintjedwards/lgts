@@ -16,7 +16,7 @@ type app struct {
 func newApp() *app {
 
 	rand.Seed(time.Now().UTC().UnixNano())
-	id := make([]byte, 10)
+	id := make([]byte, 7)
 	rand.Read(id)
 
 	return &app{
