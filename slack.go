@@ -8,6 +8,11 @@ import (
 	"github.com/nlopes/slack"
 )
 
+type user struct {
+	fullName string
+	email    string
+}
+
 func generateMessageAttachment(api *slack.Client, messageTimestamp string, username, channel string) slack.Attachment {
 
 	history, err := api.GetChannelHistory(channel, slack.HistoryParameters{
@@ -34,10 +39,6 @@ func updateMessage(api *slack.Client, attachment slack.Attachment, messageTimest
 	api.SendMessage(channel, slack.MsgOptionUpdate(messageTimestamp), slack.MsgOptionAttachments(attachment))
 }
 
-func isAuthorizedUser() {
-
-}
-
 func getMessageCallbackInfo(api *slack.Client, messageTimestamp, channel string) map[string]interface{} {
 	history, err := api.GetChannelHistory(channel, slack.HistoryParameters{
 		Count:     1,
@@ -57,14 +58,15 @@ func getMessageCallbackInfo(api *slack.Client, messageTimestamp, channel string)
 
 }
 
-func getUser(api *slack.Client, userID string) [2]string {
-	user, err := api.GetUserInfo(userID)
+func getUser(api *slack.Client, userID string) *user {
+	userInfo, err := api.GetUserInfo(userID)
 	if err != nil {
 		log.Printf("%s\n", err)
-		return [2]string{}
+		//return user{}
 	}
 
-	return [2]string{user.Profile.RealName, user.Profile.Email}
+	return &user{userInfo.Profile.RealName, userInfo.Profile.Email}
+
 }
 
 func runrtm(slackToken string) {
@@ -82,11 +84,15 @@ func runrtm(slackToken string) {
 		case *slack.ReactionAddedEvent:
 			userInfo := getUser(api, ev.User)
 			messageTimestamp := ev.Item.Timestamp
-			attachment := generateMessageAttachment(api, messageTimestamp, userInfo[0], ev.Item.Channel)
+			attachment := generateMessageAttachment(api, messageTimestamp, userInfo.fullName, ev.Item.Channel)
 			updateMessage(api, attachment, messageTimestamp, ev.Item.Channel)
-			callbackInfo := getMessageCallbackInfo(api, messageTimestamp, ev.Item.Channel)
-			//callbackInfo["lgts_token"]
-			//callbackInfo[""]
+			// if lgts.isAuthorizedUser(userInfo.email) {
+			// 	log.Println(userInfo.email)
+			// }
+
+			//callbackInfo := getMessageCallbackInfo(api, messageTimestamp, ev.Item.Channel)
+
+			//callbackInfo["app_id"]
 		case *slack.RTMError:
 			log.Printf("Error: %s\n", ev.Error())
 

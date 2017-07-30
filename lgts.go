@@ -11,17 +11,17 @@ import (
 )
 
 type lgts struct {
-	Apps           map[string]app  `json:"apps"`     //registered applications
-	Messages       map[int]message `json:"messages"` // messages to process, removed once sent back to client
-	ApprovalEmojis []string        `json:"approval_emojis"`
-	RejectEmojis   []string        `json:"reject_emojis"`
+	Apps           map[string]app     `json:"apps"`     //registered applications
+	Messages       map[string]message `json:"messages"` // messages to process, removed once sent back to client
+	ApprovalEmojis []string           `json:"approval_emojis"`
+	RejectEmojis   []string           `json:"reject_emojis"`
 }
 
 func newlgts() *lgts {
 
 	return &lgts{
 		Apps:     make(map[string]app),
-		Messages: make(map[int]message),
+		Messages: make(map[string]message),
 	}
 
 }
@@ -67,8 +67,8 @@ func (lgts *lgts) registerApp(w http.ResponseWriter, req *http.Request, _ httpro
 
 		newapp.Name = strings.TrimSpace(appinfo.Name)
 		newapp.CallbackURL = strings.TrimSpace(appinfo.CallbackURL)
-		for i := range newapp.AuthorizedApprovers {
-			newapp.AuthorizedApprovers[i] = strings.TrimSpace(appinfo.AuthorizedApprovers[i])
+		for i := range appinfo.AuthorizedApprovers {
+			newapp.AuthorizedApprovers = append(newapp.AuthorizedApprovers, strings.TrimSpace(appinfo.AuthorizedApprovers[i]))
 		}
 
 		lgts.Apps[newapp.ID] = *newapp
@@ -110,21 +110,32 @@ func (lgts *lgts) registerMessage(w http.ResponseWriter, req *http.Request, _ ht
 		json.NewEncoder(w).Encode(struct {
 			Error   string `json:"error"`
 			Message string `json:"message"`
-		}{"Invalid Parameters", "You must supply both message_id and message_token params"})
+		}{"Invalid Parameters", "You must supply both app_id and message_token params"})
 	} else {
 
 		lgts.Messages[messageinfo.AppID] = messageinfo
 
 		json.NewEncoder(w).Encode(struct {
-			SuccessCode string `json:"success_code"`
-			Message     string `json:"message"`
-		}{"200", "Message registered"})
+			Ok      bool   `json:"ok"`
+			Message string `json:"message"`
+		}{true, "Message registered"})
 
-		log.Printf("Message %d registered", messageinfo.ID)
+		log.Printf("Message registered from application: %s", messageinfo.AppID)
 	}
 }
 
 func (lgts *lgts) getMessages(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(lgts.Messages)
+}
+
+func (lgts *lgts) isAuthorizedUser(appID, email string) bool {
+
+	// for _, approvedEmail := range app.AuthorizedApprovers {
+	// 	if approvedEmail == email {
+	// 		return true
+	// 	}
+	// }
+	// return false
+
 }
