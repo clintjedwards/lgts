@@ -9,7 +9,6 @@ import (
 type message struct {
 	ID    string `json:"id"`
 	AppID string `json:"app_id"`
-	token string //token sent by client to prevent mimics
 }
 
 func newMessage() *message {

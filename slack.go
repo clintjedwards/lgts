@@ -76,18 +76,22 @@ func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEv
 	messageTimestamp := event.Item.Timestamp
 	emojiUsed := event.Reaction
 
+	//Check if the emoji used is one of the predefined emojis
+	var isApproved bool
+
 	switch {
 	case lgts.isApprovalEmoji(emojiUsed):
-		//set some stuff here for each case
+		isApproved = true
 	case lgts.isRejectionEmoji(emojiUsed):
-
+		isApproved = false
 	default:
 		return
 	}
 
+	//Get information about the message
 	callbackInfo := getMessageCallbackInfo(api, messageTimestamp, channel)
 
-	if _, ok := callbackInfo["message_token"]; !ok {
+	if _, ok := callbackInfo["message_id"]; !ok {
 		log.Printf("message_token parameter missing from callback id string")
 		return
 	}
@@ -96,28 +100,33 @@ func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEv
 		return
 	}
 
-	hashedPair := getSHA1(callbackInfo["app_id"].(string), callbackInfo["message_token"].(string))
-	appID := lgts.Messages[hashedPair].AppID
-	app := lgts.Apps[appID]
-	fmt.Println(app)
+	//Use information to recieve proper app object
+	message := lgts.Messages[callbackInfo["message_id"].(string)]
+	app := lgts.Apps[message.AppID]
 
+	//Check if user who used the emoji is part of approved list
 	userInfo, err := getUser(api, userID)
 	if err != nil {
-		log.Fatalf("Cannot find slack user: %v", err)
+		log.Printf("Cannot find slack user: %v", err)
+		return
+	}
+
+	if app.isAuthorizedUser(userInfo.email) {
+		log.Println(userInfo.email)
+	}
+
+	//User, emoji, and messageid check out
+	// update slack message and send callback url proper message
+
+	err = app.sendMessageApproval(callbackInfo, isApproved)
+	if err != nil {
+		return
 	}
 
 	attachment := generateMessageAttachment(api, messageTimestamp, userInfo.fullName, channel)
 	updateMessage(api, attachment, messageTimestamp, channel)
 
-	if lgts.isAuthorizedUser(callbackInfo["app_id"].(string), userInfo.email) {
-		log.Println(userInfo.email)
-	}
-
 }
-
-// func processApproveOrReject(lgts *lgts, emojiUsed string) {
-
-// }
 
 func runrtm(lgts *lgts, slackToken string) {
 
