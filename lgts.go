@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/gob"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
@@ -15,15 +17,17 @@ type lgts struct {
 	Messages        map[string]message `json:"messages"` // messages to process, removed once sent back to client
 	ApprovalEmojis  []string           `json:"approval_emojis"`
 	RejectionEmojis []string           `json:"reject_emojis"`
+	stateFilePath   string
 }
 
-func newlgts() *lgts {
+func newlgts(stateFilePath string) *lgts {
 
 	return &lgts{
 		Apps:            make(map[string]app),
 		Messages:        make(map[string]message),
-		ApprovalEmojis:  make([]string, 0),
-		RejectionEmojis: make([]string, 0),
+		ApprovalEmojis:  []string{"lgts", "lgtm"},
+		RejectionEmojis: []string{"lbts", "duckno"},
+		stateFilePath:   stateFilePath,
 	}
 
 }
@@ -46,36 +50,43 @@ func (lgts *lgts) registerApp(w http.ResponseWriter, req *http.Request, _ httpro
 	}
 
 	if newapp.Name == "" || newapp.CallbackURL == "" || len(newapp.AuthorizedApprovers) == 0 {
-		err := errors.New("Invalid Parameters")
+		err := fmt.Errorf("Invalid Parameters")
 		log.Println(err)
 		sendErrorResponse(w, 400, "you must supply name, callback_url, and authorized_approvers as params", err)
 		return
 
 	}
 
-	newapp.Name = strings.TrimSpace(newapp.Name)
+	newapp.Name = strings.ToLower(strings.TrimSpace(newapp.Name))
 	newapp.CallbackURL = strings.TrimSpace(newapp.CallbackURL)
 	for i := range newapp.AuthorizedApprovers {
-		newapp.AuthorizedApprovers[i] = strings.TrimSpace(newapp.AuthorizedApprovers[i])
+		newapp.AuthorizedApprovers[i] = strings.ToLower(strings.TrimSpace(newapp.AuthorizedApprovers[i]))
 	}
 
-	lgts.Apps[newapp.ID] = *newapp
+	if _, present := lgts.Apps[newapp.Name]; present {
+		err := fmt.Errorf("Application %s exists", newapp.Name)
+		sendErrorResponse(w, 400, "application already registered", err)
+		return
+	}
+
+	lgts.Apps[newapp.Name] = *newapp
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct {
-		ID                  string   `json:"id"`
 		Name                string   `json:"name"`
 		CallbackURL         string   `json:"callback_url"`
 		AuthorizedApprovers []string `json:"authorized_approvers"`
 		Token               string   `json:"token"`
-	}{newapp.ID, newapp.Name, newapp.CallbackURL, newapp.AuthorizedApprovers, newapp.token})
+	}{newapp.Name, newapp.CallbackURL, newapp.AuthorizedApprovers, newapp.token})
 
-	log.Printf("Application %s:%s registered", newapp.Name, newapp.ID)
+	log.Printf("Application %s registered", newapp.Name)
+
+	lgts.writeState()
 
 }
 
-func (lgts *lgts) unregisterApp(appID string) {
-	delete(lgts.Apps, appID)
+func (lgts *lgts) unregisterApp(appName string) {
+	delete(lgts.Apps, appName)
 }
 
 func (lgts *lgts) registerMessage(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
@@ -90,20 +101,20 @@ func (lgts *lgts) registerMessage(w http.ResponseWriter, req *http.Request, _ ht
 		return
 	}
 
-	if newMessage.AppID == "" {
+	if newMessage.AppName == "" {
 
-		err := errors.New("Invalid Parameters")
+		err := fmt.Errorf("Invalid Parameters")
 		log.Println(err)
-		sendErrorResponse(w, 400, "you must supply app_id", err)
+		sendErrorResponse(w, 400, "you must supply an app_name", err)
 		return
 
 	}
 
-	if !lgts.isApplicationRegistered(newMessage.AppID) {
+	if !lgts.isApplicationRegistered(newMessage.AppName) {
 
-		err := errors.New("Applicaiton not found")
+		err := fmt.Errorf("Application not found")
 		log.Println(err)
-		sendErrorResponse(w, 404, "incorrect app_id provided; you must register your application first", err)
+		sendErrorResponse(w, 404, "incorrect app_name provided; you must register your application first", err)
 		return
 
 	}
@@ -113,14 +124,14 @@ func (lgts *lgts) registerMessage(w http.ResponseWriter, req *http.Request, _ ht
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(newMessage)
 
-	log.Printf("Message %s registered from application: %s", newMessage.ID, newMessage.AppID)
+	log.Printf("Message %s registered from application: %s", newMessage.ID, newMessage.AppName)
 
 }
 
-func (lgts *lgts) isApplicationRegistered(appID string) bool {
+func (lgts *lgts) isApplicationRegistered(appName string) bool {
 
 	for apps := range lgts.Apps {
-		if apps == appID {
+		if apps == appName {
 			return true
 		}
 	}
@@ -152,4 +163,34 @@ func (lgts *lgts) isRejectionEmoji(emoji string) bool {
 	}
 	return false
 
+}
+
+func (lgts *lgts) writeState() {
+
+	file, err := os.Create(lgts.stateFilePath)
+	if err != nil {
+		log.Printf("could not save state: %v", err)
+		return
+	}
+	defer file.Close()
+
+	encoder := gob.NewEncoder(file)
+	encoder.Encode(lgts.Apps)
+
+}
+
+func (lgts *lgts) loadState() {
+	file, err := os.Open(lgts.stateFilePath)
+	if err != nil {
+		log.Printf("could not load state: %v", err)
+		return
+	}
+	defer file.Close()
+
+	decoder := gob.NewDecoder(file)
+	err = decoder.Decode(&lgts.Apps)
+	if err != nil {
+		log.Printf("could not load state: %v", err)
+		return
+	}
 }

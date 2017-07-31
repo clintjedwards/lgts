@@ -7,8 +7,8 @@ import (
 )
 
 type message struct {
-	ID    string `json:"id"`
-	AppID string `json:"app_id"`
+	ID      string `json:"id"`
+	AppName string `json:"app_name"`
 }
 
 func newMessage() *message {

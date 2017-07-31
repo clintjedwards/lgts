@@ -10,7 +10,6 @@ import (
 )
 
 type app struct {
-	ID                  string   `json:"id"`
 	Name                string   `json:"name"`
 	CallbackURL         string   `json:"callback_url"`
 	AuthorizedApprovers []string `json:"authorized_approvers"` //Approvers email addresses
@@ -20,13 +19,10 @@ type app struct {
 func newApp() *app {
 
 	rand.Seed(time.Now().UTC().UnixNano())
-	id := make([]byte, 10)
 	token := make([]byte, 10)
-	rand.Read(id)
 	rand.Read(token)
 
 	return &app{
-		ID:    fmt.Sprintf("%x", id),
 		token: fmt.Sprintf("%x", token),
 	}
 

@@ -13,7 +13,7 @@ type user struct {
 	email    string
 }
 
-func generateMessageAttachment(api *slack.Client, messageTimestamp string, username, channel string) slack.Attachment {
+func generateMessageAttachment(api *slack.Client, messageTimestamp, username, channel string, isApproved bool) slack.Attachment {
 
 	history, err := api.GetChannelHistory(channel, slack.HistoryParameters{
 		Count:     1,
@@ -24,9 +24,16 @@ func generateMessageAttachment(api *slack.Client, messageTimestamp string, usern
 		log.Println(err)
 	}
 
+	var decisionVerb string
+	if isApproved {
+		decisionVerb = "Approved"
+	} else if !isApproved {
+		decisionVerb = "Rejected"
+	}
+
 	messageAttachment := history.Messages[0].Msg.Attachments[0]
 	messageAttachment.Fields[0] = slack.AttachmentField{
-		Value: fmt.Sprintf("Approved by %s", username),
+		Value: fmt.Sprintf("%s by %s", decisionVerb, username),
 		Short: false,
 	}
 
@@ -92,17 +99,26 @@ func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEv
 	callbackInfo := getMessageCallbackInfo(api, messageTimestamp, channel)
 
 	if _, ok := callbackInfo["message_id"]; !ok {
-		log.Printf("message_token parameter missing from callback id string")
+		log.Printf("message_id parameter missing from callback id string")
 		return
 	}
-	if _, ok := callbackInfo["app_id"]; !ok {
-		log.Printf("app_id parameter missing from callback id string")
+	if _, ok := callbackInfo["app_name"]; !ok {
+		log.Printf("app_name parameter missing from callback id string")
 		return
 	}
 
-	//Use information to recieve proper app object
-	message := lgts.Messages[callbackInfo["message_id"].(string)]
-	app := lgts.Apps[message.AppID]
+	//Use information to recieve proper app/message object and check for existence
+	message, present := lgts.Messages[callbackInfo["message_id"].(string)]
+	if !present {
+		log.Println("Message processed but not found in queue")
+		return
+	}
+
+	app, present := lgts.Apps[message.AppName]
+	if !present {
+		log.Println("Message processed but app not registered")
+		return
+	}
 
 	//Check if user who used the emoji is part of approved list
 	userInfo, err := getUser(api, userID)
@@ -111,8 +127,9 @@ func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEv
 		return
 	}
 
-	if app.isAuthorizedUser(userInfo.email) {
-		log.Println(userInfo.email)
+	if !app.isAuthorizedUser(userInfo.email) {
+		log.Println("User not authorized to approve")
+		return
 	}
 
 	//User, emoji, and messageid check out
@@ -120,11 +137,14 @@ func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEv
 
 	err = app.sendMessageApproval(callbackInfo, isApproved)
 	if err != nil {
-		return
+		//return
+		log.Printf("Couldn't send proper request: %v", err)
 	}
 
-	attachment := generateMessageAttachment(api, messageTimestamp, userInfo.fullName, channel)
+	attachment := generateMessageAttachment(api, messageTimestamp, userInfo.fullName, channel, isApproved)
 	updateMessage(api, attachment, messageTimestamp, channel)
+
+	delete(lgts.Messages, message.ID)
 
 }
 
