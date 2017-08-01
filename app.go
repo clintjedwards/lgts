@@ -40,6 +40,7 @@ func (app *app) isAuthorizedUser(email string) bool {
 }
 
 func (app *app) sendMessageApproval(callbackInfo map[string]interface{}, approved bool) error {
+	callbackInfo["token"] = app.token
 	jsonString, _ := json.Marshal(callbackInfo)
 
 	_, err := http.Post(app.CallbackURL, "application/json", bytes.NewBuffer(jsonString))
