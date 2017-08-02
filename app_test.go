@@ -45,7 +45,7 @@ func TestSendMessageApproval(t *testing.T) {
 	app := &app{"testapp", testServer.URL, []string{"barack.obama@gmail.com"}, "somerandomstringofcharacters"}
 
 	t.Run("approval successfully sent", func(t *testing.T) {
-		err := app.sendMessageApproval(callbackInfo, true)
+		err := app.sendMessageApproval(callbackInfo, "barack.obama@gmail.com", true)
 		if err != nil {
 			t.Fatal(err)
 		}

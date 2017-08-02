@@ -39,8 +39,11 @@ func (app *app) isAuthorizedUser(email string) bool {
 
 }
 
-func (app *app) sendMessageApproval(callbackInfo map[string]interface{}, approved bool) error {
+func (app *app) sendMessageApproval(callbackInfo map[string]interface{}, deciderEmail string, approved bool) error {
 	callbackInfo["token"] = app.token
+	callbackInfo["is_approved"] = approved
+	callbackInfo["decider"] = deciderEmail
+
 	jsonString, _ := json.Marshal(callbackInfo)
 
 	_, err := http.Post(app.CallbackURL, "application/json", bytes.NewBuffer(jsonString))

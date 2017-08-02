@@ -13,7 +13,7 @@ type user struct {
 	email    string
 }
 
-func generateMessageAttachment(api *slack.Client, messageTimestamp, username, channel string, isApproved bool) slack.Attachment {
+func generateMessageAttachment(api *slack.Client, messageTimestamp, username, channel, decisionVerb string) slack.Attachment {
 
 	history, err := api.GetChannelHistory(channel, slack.HistoryParameters{
 		Count:     1,
@@ -22,13 +22,6 @@ func generateMessageAttachment(api *slack.Client, messageTimestamp, username, ch
 	})
 	if err != nil {
 		log.Println(err)
-	}
-
-	var decisionVerb string
-	if isApproved {
-		decisionVerb = "Approved"
-	} else if !isApproved {
-		decisionVerb = "Rejected"
 	}
 
 	messageAttachment := history.Messages[0].Msg.Attachments[0]
@@ -85,12 +78,15 @@ func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEv
 
 	//Check if the emoji used is one of the predefined emojis
 	var isApproved bool
+	var decisionVerb string
 
 	switch {
 	case lgts.isApprovalEmoji(emojiUsed):
 		isApproved = true
+		decisionVerb = "approved"
 	case lgts.isRejectionEmoji(emojiUsed):
 		isApproved = false
+		decisionVerb = "rejected"
 	default:
 		return
 	}
@@ -135,14 +131,16 @@ func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEv
 	//User, emoji, and messageid check out
 	// update slack message and send callback url proper message
 
-	err = app.sendMessageApproval(callbackInfo, isApproved)
+	err = app.sendMessageApproval(callbackInfo, userInfo.email, isApproved)
 	if err != nil {
 		//return
 		log.Printf("Couldn't send proper request: %v", err)
 	}
 
-	attachment := generateMessageAttachment(api, messageTimestamp, userInfo.fullName, channel, isApproved)
+	attachment := generateMessageAttachment(api, messageTimestamp, userInfo.fullName, channel, decisionVerb)
 	updateMessage(api, attachment, messageTimestamp, channel)
+
+	log.Printf("Message ID %s was %s by slack user %s", message.ID, decisionVerb, userInfo.fullName)
 
 	delete(lgts.Messages, message.ID)
 
