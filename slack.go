@@ -133,8 +133,8 @@ func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEv
 
 	err = app.sendMessageApproval(callbackInfo, userInfo.email, isApproved)
 	if err != nil {
-		//return
 		log.Printf("Couldn't send proper request: %v", err)
+		return
 	}
 
 	attachment := generateMessageAttachment(api, messageTimestamp, userInfo.fullName, channel, decisionVerb)
