@@ -13,8 +13,7 @@ type user struct {
 	email    string
 }
 
-func generateMessageAttachment(api *slack.Client, messageTimestamp, username, channel, decisionVerb string) slack.Attachment {
-
+func getMessageCallbackInfo(api *slack.Client, messageTimestamp, channel string) (map[string]interface{}, error) {
 	history, err := api.GetChannelHistory(channel, slack.HistoryParameters{
 		Count:     1,
 		Inclusive: true,
@@ -22,39 +21,33 @@ func generateMessageAttachment(api *slack.Client, messageTimestamp, username, ch
 	})
 	if err != nil {
 		log.Println(err)
-	}
-
-	messageAttachment := history.Messages[0].Msg.Attachments[0]
-	messageAttachment.Fields[0] = slack.AttachmentField{
-		Value: fmt.Sprintf("%s by %s", decisionVerb, username),
-		Short: false,
-	}
-
-	return messageAttachment
-}
-
-func updateMessage(api *slack.Client, attachment slack.Attachment, messageTimestamp, channel string) {
-	//We use SendMessage here instead of UpdateMessage because the latter does not support updating attachments
-	// https://github.com/nlopes/slack/pull/121
-	api.SendMessage(channel, slack.MsgOptionUpdate(messageTimestamp), slack.MsgOptionAttachments(attachment))
-}
-
-func getMessageCallbackInfo(api *slack.Client, messageTimestamp, channel string) map[string]interface{} {
-	history, err := api.GetChannelHistory(channel, slack.HistoryParameters{
-		Count:     1,
-		Inclusive: true,
-		Latest:    messageTimestamp,
-	})
-	if err != nil {
-		log.Println(err)
+		return nil, err
 	}
 
 	messageInfo := history.Messages[0].Msg.Attachments[0].CallbackID
 
 	var callbackInfo map[string]interface{}
-	json.Unmarshal([]byte(messageInfo), &callbackInfo)
+	err = json.Unmarshal([]byte(messageInfo), &callbackInfo)
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
 
-	return callbackInfo
+	if _, ok := callbackInfo["message_id"]; !ok {
+		err := fmt.Errorf("message_id parameter missing from callback id string")
+		log.Println(err)
+		return nil, err
+	}
+	if _, ok := callbackInfo["app_name"]; !ok {
+		err := fmt.Errorf("app_name parameter missing from callback id string")
+		log.Println(err)
+		return nil, err
+	}
+
+	callbackInfo["channel"] = channel
+	callbackInfo["message_timestamp"] = messageTimestamp
+
+	return callbackInfo, nil
 
 }
 
@@ -92,14 +85,9 @@ func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEv
 	}
 
 	//Get information about the message
-	callbackInfo := getMessageCallbackInfo(api, messageTimestamp, channel)
-
-	if _, ok := callbackInfo["message_id"]; !ok {
-		log.Printf("message_id parameter missing from callback id string")
-		return
-	}
-	if _, ok := callbackInfo["app_name"]; !ok {
-		log.Printf("app_name parameter missing from callback id string")
+	callbackInfo, err := getMessageCallbackInfo(api, messageTimestamp, channel)
+	if err != nil {
+		log.Printf("Cannot not successfully get callback information. Skipping message. %v", err)
 		return
 	}
 
@@ -128,17 +116,11 @@ func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEv
 		return
 	}
 
-	//User, emoji, and messageid check out
-	// update slack message and send callback url proper message
-
 	err = app.sendMessageApproval(callbackInfo, userInfo.email, isApproved)
 	if err != nil {
 		log.Printf("Couldn't send proper request: %v", err)
 		return
 	}
-
-	attachment := generateMessageAttachment(api, messageTimestamp, userInfo.fullName, channel, decisionVerb)
-	updateMessage(api, attachment, messageTimestamp, channel)
 
 	log.Printf("Message ID %s was %s by slack user %s", message.ID, decisionVerb, userInfo.fullName)
 

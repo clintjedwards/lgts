@@ -130,8 +130,8 @@ func (lgts *lgts) registerMessage(w http.ResponseWriter, req *http.Request, _ ht
 
 func (lgts *lgts) isApplicationRegistered(appName string) bool {
 
-	for apps := range lgts.Apps {
-		if apps == appName {
+	for app := range lgts.Apps {
+		if app == appName {
 			return true
 		}
 	}
