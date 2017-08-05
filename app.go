@@ -13,7 +13,7 @@ type app struct {
 	Name                string   `json:"name"`
 	CallbackURL         string   `json:"callback_url"`
 	AuthorizedApprovers []string `json:"authorized_approvers"` //Approvers email addresses
-	token               string
+	Token               string
 }
 
 func newApp() *app {
@@ -23,7 +23,7 @@ func newApp() *app {
 	rand.Read(token)
 
 	return &app{
-		token: fmt.Sprintf("%x", token),
+		Token: fmt.Sprintf("%x", token),
 	}
 
 }
@@ -40,7 +40,7 @@ func (app *app) isAuthorizedUser(email string) bool {
 }
 
 func (app *app) sendMessageApproval(callbackInfo map[string]interface{}, deciderEmail string, approved bool) error {
-	callbackInfo["token"] = app.token
+	callbackInfo["token"] = app.Token
 	callbackInfo["is_approved"] = approved
 	callbackInfo["decider"] = deciderEmail
 

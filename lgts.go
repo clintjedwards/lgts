@@ -77,7 +77,7 @@ func (lgts *lgts) registerApp(w http.ResponseWriter, req *http.Request, _ httpro
 		CallbackURL         string   `json:"callback_url"`
 		AuthorizedApprovers []string `json:"authorized_approvers"`
 		Token               string   `json:"token"`
-	}{newapp.Name, newapp.CallbackURL, newapp.AuthorizedApprovers, newapp.token})
+	}{newapp.Name, newapp.CallbackURL, newapp.AuthorizedApprovers, newapp.Token})
 
 	log.Printf("Application %s registered", newapp.Name)
 
