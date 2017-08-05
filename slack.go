@@ -128,10 +128,10 @@ func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEv
 
 }
 
-func runrtm(lgts *lgts, slackToken string) {
+func runrtm(lgts *lgts, slackToken string, debug bool) {
 
 	api := slack.New(slackToken)
-	//api.SetDebug(true)
+	api.SetDebug(debug)
 
 	rtm := api.NewRTM()
 	go rtm.ManageConnection()

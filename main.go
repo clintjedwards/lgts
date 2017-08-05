@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -11,6 +12,8 @@ import (
 var slackToken = os.Getenv("SLACK_TOKEN")
 var serverURL = os.Getenv("SERVER_URL")
 var stateFilePath = os.Getenv("STATE_FILE_PATH")
+var debug bool
+var debugString = os.Getenv("DEBUG")
 
 func init() {
 
@@ -26,6 +29,11 @@ func init() {
 		stateFilePath = "./state"
 	}
 
+	if debugString == "" {
+		debug = false
+	} else {
+		debug, _ = strconv.ParseBool(debugString)
+	}
 }
 
 func main() {
@@ -33,7 +41,7 @@ func main() {
 
 	lgts := *newlgts(stateFilePath)
 	lgts.loadState()
-	go runrtm(&lgts, slackToken)
+	go runrtm(&lgts, slackToken, debug)
 
 	router.GET("/apps", lgts.getApps)
 	router.POST("/apps", lgts.registerApp)
