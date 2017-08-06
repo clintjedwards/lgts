@@ -13,7 +13,7 @@ type app struct {
 	Name                string   `json:"name"`
 	CallbackURL         string   `json:"callback_url"`
 	AuthorizedApprovers []string `json:"authorized_approvers"` //Approvers email addresses
-	Token               string
+	Token               string   `json:"-"`
 }
 
 func newApp() *app {
