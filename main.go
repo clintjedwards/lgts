@@ -1,7 +1,10 @@
-// lgts (looks good to slack) listens to slack event stream
-// and then reports back when certain emojis are used by certain
-// users on predetermined messages
+// lgts (looks good to slack) is a web service which
+// allows applications to register messages to look out for,
+// listens to the slack event stream and then reports back
+// when certain emojis are used by certain users on those
+// predetermined messages
 
+// Provides a service much like interactive messages.
 // Useful for instances where public callbacks are impossible
 
 package main
