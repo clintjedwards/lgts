@@ -5,6 +5,7 @@ import (
 	"net/http"
 )
 
+// sendErrorResponse formats and sends an error message to supplied writer in json format
 func sendErrorResponse(w http.ResponseWriter, httpStatusCode int, errorMessage string, err error) {
 	w.WriteHeader(httpStatusCode)
 	w.Header().Set("Content-Type", "application/json")

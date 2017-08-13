@@ -1,3 +1,9 @@
+// lgts (looks good to slack) listens to slack event stream
+// and then reports back when certain emojis are used by certain
+// users on predetermined messages
+
+// Useful for instances where public callbacks are impossible
+
 package main
 
 import (
@@ -11,7 +17,7 @@ import (
 
 var slackToken = os.Getenv("SLACK_TOKEN")
 var serverURL = os.Getenv("SERVER_URL")
-var stateFilePath = os.Getenv("STATE_FILE_PATH")
+var stateFilePath = os.Getenv("STATE_FILE_PATH") // Full path to save state of registered applications
 var debug bool
 var debugString = os.Getenv("DEBUG")
 

@@ -13,6 +13,7 @@ type user struct {
 	email    string
 }
 
+// getMessageCallbackInfo retrieves message at supplied timestamp and parses callback ID from json to map
 func getMessageCallbackInfo(api *slack.Client, messageTimestamp, channel string) (map[string]interface{}, error) {
 	history, err := api.GetChannelHistory(channel, slack.HistoryParameters{
 		Count:     1,
@@ -62,6 +63,8 @@ func getUser(api *slack.Client, userID string) (*user, error) {
 
 }
 
+// ProcessDecision checks if the emoji reaction detected fits all criteria of an acceptable
+// message to be sent back to the callback application
 func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEvent) {
 
 	userID := event.User
@@ -128,6 +131,7 @@ func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEv
 
 }
 
+// runrtm runs slack's real time event stream and listens for reaction events
 func runrtm(lgts *lgts, slackToken string, debug bool) {
 
 	api := slack.New(slackToken)

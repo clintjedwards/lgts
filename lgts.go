@@ -165,6 +165,8 @@ func (lgts *lgts) isRejectionEmoji(emoji string) bool {
 
 }
 
+// writeState persists current Apps map state so that the process
+// can restart without losing tokens
 func (lgts *lgts) writeState() {
 
 	file, err := os.Create(lgts.stateFilePath)
