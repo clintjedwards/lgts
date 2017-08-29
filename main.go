@@ -55,6 +55,9 @@ func main() {
 	router.GET("/apps", lgts.getApps)
 	router.POST("/apps", lgts.registerApp)
 
+	router.PUT("/apps/:name", lgts.updateApp)
+	router.DELETE("/apps/:name", lgts.unregisterApp)
+
 	router.GET("/messages", lgts.getMessages)
 	router.POST("/messages", lgts.registerMessage)
 

@@ -85,8 +85,61 @@ func (lgts *lgts) registerApp(w http.ResponseWriter, req *http.Request, _ httpro
 
 }
 
-func (lgts *lgts) unregisterApp(appName string) {
+func (lgts *lgts) unregisterApp(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+
+	token := req.Header.Get("Authorization")
+	appName := params.ByName("name")
+
+	if _, present := lgts.Apps[appName]; !present {
+		err := fmt.Errorf("Application %s does not exist", appName)
+		sendErrorResponse(w, 400, "application not registered", err)
+		return
+	}
+
+	if token != lgts.Apps[appName].Token {
+		err := fmt.Errorf("Incorrect token for Application %s", appName)
+		sendErrorResponse(w, 401, "Unauthorized", err)
+		return
+	}
+
 	delete(lgts.Apps, appName)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(lgts.Apps)
+}
+
+func (lgts *lgts) updateApp(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+
+	token := req.Header.Get("Authorization")
+	appName := params.ByName("name")
+
+	if _, present := lgts.Apps[appName]; !present {
+		err := fmt.Errorf("Application %s does not exist", appName)
+		sendErrorResponse(w, 400, "application not registered", err)
+		return
+	}
+
+	if token != lgts.Apps[appName].Token {
+		err := fmt.Errorf("Incorrect token for Application %s", appName)
+		sendErrorResponse(w, 401, "Unauthorized", err)
+		return
+	}
+
+	app := lgts.Apps[appName]
+
+	decoder := json.NewDecoder(req.Body)
+	err := decoder.Decode(&app)
+	if err != nil {
+		log.Println(err)
+		sendErrorResponse(w, 400, "could not decode json body", err)
+		return
+	}
+
+	lgts.Apps[appName] = app
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(app)
+
 }
 
 func (lgts *lgts) registerMessage(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
