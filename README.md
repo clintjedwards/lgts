@@ -18,7 +18,7 @@ go get -u github.com/clintjedwards/lgts
 ## Usage
 Register application
 ```
-echo '{"name": "testapp2", "callback_url": "https://localhost", "authorized_approvers":["clint.edwards@addepar.com"]}' | curl -k -H "Content-Type: application/json" -X POST -d @- http://localhost:8080/apps
+echo '{"name": "testapp2", "callback_url": "https://localhost", "authorized_approvers":["barack.obama@gmail.com"]}' | curl -k -H "Content-Type: application/json" -X POST -d @- http://localhost:8080/apps
 ```
 
 View registered applications
