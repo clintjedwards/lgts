@@ -51,7 +51,7 @@ func TestIsAuthorizedUser(t *testing.T) {
 
 func TestSendMessageApproval(t *testing.T) {
 
-	t.Run("server recieves correct message format", func(t *testing.T) {
+	t.Run("server receives correct message format", func(t *testing.T) {
 		var callbackInfo = make(map[string]interface{})
 
 		callbackInfo["app_name"] = "testapp"
@@ -70,7 +70,7 @@ func TestSendMessageApproval(t *testing.T) {
 
 			for key := range callbackInfo {
 				if callbackInfo[key] != receivedValues[key] {
-					t.Fatalf("recieved value %s for key %s different from expected value %s", callbackInfo[key], key, receivedValues[key])
+					t.Fatalf("received value %s for key %s different from expected value %s", callbackInfo[key], key, receivedValues[key])
 				}
 			}
 

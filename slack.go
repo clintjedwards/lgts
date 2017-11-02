@@ -94,7 +94,7 @@ func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEv
 		return
 	}
 
-	//Use information to recieve proper app/message object and check for existence
+	//Use information to receive proper app/message object and check for existence
 	message, present := lgts.Messages[callbackInfo["message_id"].(string)]
 	if !present {
 		log.Println("Message processed but not found in queue")
