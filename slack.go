@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 
@@ -13,139 +12,126 @@ type user struct {
 	email    string
 }
 
-// getMessageCallbackInfo retrieves message at supplied timestamp and parses callback ID from json to map
-func getMessageCallbackInfo(api *slack.Client, messageTimestamp, channel string) (map[string]interface{}, error) {
-	history, err := api.GetChannelHistory(channel, slack.HistoryParameters{
+func (app *app) getSlackMessageID(messageTimestamp, channel string) (messageID string, err error) {
+	history, err := app.slackAppClient.GetChannelHistory(channel, slack.HistoryParameters{
 		Count:     1,
 		Inclusive: true,
 		Latest:    messageTimestamp,
 	})
 	if err != nil {
-		log.Println(err)
-		return nil, err
+		log.Printf("slack: %s", err)
+		return "", err
 	}
 
-	messageInfo := history.Messages[0].Msg.Attachments[0].CallbackID
-
-	var callbackInfo map[string]interface{}
-	err = json.Unmarshal([]byte(messageInfo), &callbackInfo)
-	if err != nil {
-		log.Println(err)
-		return nil, err
+	if len(history.Messages[0].Msg.Attachments) > 0 {
+		messageID = history.Messages[0].Msg.Attachments[0].CallbackID
+	} else {
+		err := fmt.Errorf("message processed; no attachment found")
+		return "", err
 	}
 
-	if _, ok := callbackInfo["message_id"]; !ok {
-		err := fmt.Errorf("message_id parameter missing from callback id string")
-		log.Println(err)
-		return nil, err
-	}
-	if _, ok := callbackInfo["app_name"]; !ok {
-		err := fmt.Errorf("app_name parameter missing from callback id string")
-		log.Println(err)
-		return nil, err
+	if messageID == "" {
+		err := fmt.Errorf("missing messageID in attachment body/callbackID param")
+		return "", err
 	}
 
-	callbackInfo["channel"] = channel
-	callbackInfo["message_timestamp"] = messageTimestamp
-
-	return callbackInfo, nil
+	return messageID, nil
 
 }
 
-func getUser(api *slack.Client, userID string) (*user, error) {
-	userInfo, err := api.GetUserInfo(userID)
+func (app *app) getSlackUser(userID string) (*user, error) {
+	userInfo, err := app.slackAppClient.GetUserInfo(userID)
 	if err != nil {
-		log.Printf("%s\n", err)
+		log.Println(err)
 		return nil, err
 	}
 
 	return &user{userInfo.Profile.RealName, userInfo.Profile.Email}, nil
-
 }
 
-// ProcessDecision checks if the emoji reaction detected fits all criteria of an acceptable
-// message to be sent back to the callback application
-func processDecision(api *slack.Client, lgts *lgts, event *slack.ReactionAddedEvent) {
-
-	userID := event.User
-	channel := event.Item.Channel
-	messageTimestamp := event.Item.Timestamp
-	emojiUsed := event.Reaction
-
-	//Check if the emoji used is one of the predefined emojis
-	var isApproved bool
-	var decisionVerb string
-
-	switch {
-	case lgts.isApprovalEmoji(emojiUsed):
-		isApproved = true
-		decisionVerb = "approved"
-	case lgts.isRejectionEmoji(emojiUsed):
-		isApproved = false
-		decisionVerb = "rejected"
-	default:
-		return
-	}
-
-	//Get information about the message
-	callbackInfo, err := getMessageCallbackInfo(api, messageTimestamp, channel)
+//Used to search service for the service with a specific messageID
+// might be useful to consider a global map to store this in instead to speed things up
+func (app *app) getServicebyMessageID(messageID string) (*service, error) {
+	services, err := app.getServices()
 	if err != nil {
-		log.Printf("Cannot not successfully get callback information. Skipping message. %v", err)
-		return
+		return &service{}, err
 	}
 
-	//Use information to receive proper app/message object and check for existence
-	message, present := lgts.Messages[callbackInfo["message_id"].(string)]
-	if !present {
-		log.Println("Message processed but not found in queue")
-		return
+	referencedService := &service{}
+	for _, service := range services {
+		if (app.messages[service.Name][messageID]) != (message{}) {
+			referencedService = service
+			break
+		}
 	}
 
-	app, present := lgts.Apps[message.AppName]
-	if !present {
-		log.Println("Message processed but app not registered")
-		return
+	if referencedService.Name == "" {
+		err := fmt.Errorf("Cannot find service with messageID %s", obfuscateString(messageID))
+		return &service{}, err
+	}
+
+	return referencedService, err
+}
+
+//parseMessage grabs all message data to be evaluation. If message data doesn't have required string
+// we return error
+func (app *app) processSlackMessage(event *slack.ReactionAddedEvent) error {
+
+	messageID, err := app.getSlackMessageID(event.Item.Timestamp, event.Item.Channel)
+	if err != nil {
+		return err
+	}
+
+	service, err := app.getServicebyMessageID(messageID)
+	if err != nil {
+		return err
 	}
 
 	//Check if user who used the emoji is part of approved list
-	userInfo, err := getUser(api, userID)
+	userInfo, err := app.getSlackUser(event.User)
 	if err != nil {
-		log.Printf("Cannot find slack user: %v", err)
-		return
+		err := fmt.Errorf("Cannot find slack user: %s", err)
+		return err
 	}
 
-	if !app.isAuthorizedUser(userInfo.email) {
-		log.Println("User not authorized to approve")
-		return
+	if !service.isAuthorizedSlacker(userInfo.email) {
+		err := fmt.Errorf("User %s not authorized to approve messageID %s", userInfo.email, obfuscateString(messageID))
+		return err
 	}
 
-	err = app.sendMessageApproval(callbackInfo, userInfo.email, isApproved)
+	err = service.sendCallbackMessage(messageID, userInfo.email, event.Reaction)
 	if err != nil {
-		log.Printf("Couldn't send proper request: %v", err)
-		return
+		err := fmt.Errorf("Couldn't send request to callback URL %s for service %s: %s", service.CallbackURL, service.Name, err)
+		return err
 	}
 
-	log.Printf("Message ID %s was %s by slack user %s", message.ID, decisionVerb, userInfo.fullName)
+	log.Printf("emoji %s was applied to message id %s by slack user %s; removing message from queue", event.Reaction, messageID, userInfo.fullName)
 
-	delete(lgts.Messages, message.ID)
+	err = app.deleteMessage(service.Name, messageID)
+	if err != nil {
+		return err
+	}
 
+	return nil
 }
 
 // runrtm runs slack's real time event stream and listens for reaction events
-func runrtm(lgts *lgts, slackToken string, debug bool) {
+func (app *app) runrtm() {
 
-	api := slack.New(slackToken)
-	api.SetDebug(debug)
-
-	rtm := api.NewRTM()
+	rtm := app.slackBotClient.NewRTM()
 	go rtm.ManageConnection()
 
-	log.Println("Starting slack event reader")
+	log.Println("Slack: Starting slack event reader")
 
 	for msg := range rtm.IncomingEvents {
 		switch ev := msg.Data.(type) {
 		case *slack.ReactionAddedEvent:
-			processDecision(api, lgts, ev)
+			err := app.processSlackMessage(ev)
+			if err != nil {
+				err := fmt.Errorf("Slack: %v", err)
+				log.Println(err)
+				return
+			}
 
 		case *slack.RTMError:
 			log.Printf("Error: %s\n", ev.Error())

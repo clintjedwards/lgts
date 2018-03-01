@@ -13,54 +13,50 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
+	"time"
 
-	"github.com/julienschmidt/httprouter"
+	"github.com/clintjedwards/lgts/helpers/httputil"
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 )
 
-var slackToken = os.Getenv("SLACK_TOKEN")
-var serverURL = os.Getenv("SERVER_URL")
-var stateFilePath = os.Getenv("STATE_FILE_PATH") // Full path to save state of registered applications
-var debug bool
-var debugString = os.Getenv("DEBUG")
-
-func init() {
-
-	if slackToken == "" {
-		log.Fatal("$SLACK_TOKEN not set")
-	}
-
-	if serverURL == "" {
-		serverURL = "localhost:8080"
-	}
-
-	if stateFilePath == "" {
-		stateFilePath = "./state"
-	}
-
-	if debugString == "" {
-		debug = false
-	} else {
-		debug, _ = strconv.ParseBool(debugString)
-	}
-}
-
 func main() {
-	router := httprouter.New()
+	router := mux.NewRouter()
 
-	lgts := *newlgts(stateFilePath)
-	lgts.loadState()
-	go runrtm(&lgts, slackToken, debug)
+	app := *newApp()
+	go app.runrtm()
 
-	router.GET("/apps", lgts.getApps)
-	router.POST("/apps", lgts.registerApp)
+	router.Handle("/services", handlers.MethodHandler{
+		"GET":  http.HandlerFunc(app.getServicesHandler),
+		"POST": http.HandlerFunc(app.createServiceHandler),
+	})
 
-	router.PUT("/apps/:name", lgts.updateApp)
-	router.DELETE("/apps/:name", lgts.unregisterApp)
+	router.Handle("/services/{name}", handlers.MethodHandler{
+		"GET":    http.HandlerFunc(app.getServiceHandler),
+		"PUT":    app.checkAuthorizationHandler(http.HandlerFunc(app.updateServiceHandler)),
+		"DELETE": app.checkAuthorizationHandler(http.HandlerFunc(app.deleteServiceHandler)),
+	})
 
-	router.GET("/messages", lgts.getMessages)
-	router.POST("/messages", lgts.registerMessage)
+	router.Handle("/services/{name}/messages", handlers.MethodHandler{
+		"GET":  app.checkAuthorizationHandler(http.HandlerFunc(app.getMessagesHandler)),
+		"POST": app.checkAuthorizationHandler(http.HandlerFunc(app.createMessageHandler)),
+	})
 
-	log.Printf("Starting lgts server on %s\n", serverURL)
-	log.Fatal(http.ListenAndServe(serverURL, router))
+	router.Handle("/services/{name}/messages/{id}", handlers.MethodHandler{
+		"GET":    app.checkAuthorizationHandler(http.HandlerFunc(app.getMessageHandler)),
+		"DELETE": app.checkAuthorizationHandler(http.HandlerFunc(app.deleteMessageHandler)),
+	})
+
+	server := http.Server{
+		Addr:         app.config.ServerURL,
+		Handler:      router,
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+	}
+
+	server.Handler = httputil.DefaultHeaders(router)
+	server.Handler = handlers.LoggingHandler(os.Stdout, server.Handler)
+
+	log.Printf("Starting lgts server on %s\n", app.config.ServerURL)
+	log.Fatal(http.ListenAndServe(app.config.ServerURL, router))
 }

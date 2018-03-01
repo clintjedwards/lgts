@@ -5,14 +5,27 @@ import (
 	"net/http"
 )
 
-// sendErrorResponse formats and sends an error message to supplied writer in json format
-func sendErrorResponse(w http.ResponseWriter, httpStatusCode int, errorMessage string, err error) {
-	w.WriteHeader(httpStatusCode)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(struct {
-		Ok         bool   `json:"ok"`
-		StatusText string `json:"status_text"`
-		Message    string `json:"message"`
-		Error      string `json:"error"`
-	}{false, http.StatusText(httpStatusCode), errorMessage, err.Error()})
+//sendResponse formats and sends an error message to supplied writer in json format
+func sendResponse(w http.ResponseWriter, httpStatusCode int, data interface{}, error bool) error {
+
+	if httpStatusCode != 200 {
+		w.WriteHeader(httpStatusCode)
+	}
+
+	if error {
+		err := json.NewEncoder(w).Encode(struct {
+			StatusText string      `json:"status_text"`
+			Message    interface{} `json:"message"`
+		}{http.StatusText(httpStatusCode), data})
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	enc.Encode(data)
+
+	return nil
 }
