@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -33,9 +34,11 @@ func ParseJSON(rc io.Reader, object interface{}) error {
 }
 
 //SendHTTPGETRequest allows easy send of http GET requests. Automatically takes care of retrying
-func SendHTTPGETRequest(url string, headers map[string]string) (*http.Response, error) {
+func SendHTTPGETRequest(url string, headers map[string]string, debug bool) (*http.Response, error) {
 	client := retryablehttp.NewClient()
-
+	if !debug {
+		client.Logger.SetOutput(ioutil.Discard)
+	}
 	request, err := retryablehttp.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -56,9 +59,12 @@ func SendHTTPGETRequest(url string, headers map[string]string) (*http.Response, 
 }
 
 //SendHTTPPOSTRequest allows easy send of http POST requests. Automatically takes care of retrying
-func SendHTTPPOSTRequest(url string, headers map[string]string, messageBody []byte) (*http.Response, error) {
+func SendHTTPPOSTRequest(url string, headers map[string]string, messageBody []byte, debug bool) (*http.Response, error) {
 
 	client := retryablehttp.NewClient()
+	if !debug {
+		client.Logger.SetOutput(ioutil.Discard)
+	}
 
 	request, err := retryablehttp.NewRequest("POST", url, bytes.NewReader(messageBody))
 	if err != nil {

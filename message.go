@@ -3,65 +3,59 @@ package main
 import (
 	"fmt"
 	"math/rand"
-	"strings"
 	"time"
 )
 
-type message struct {
-	Created time.Time `json:"created"`
+type trackedMessage struct {
+	ID          string   `json:"id"`           //The unique message id that is used to identify the slack message
+	Submitted   int64    `json:"submitted"`    //Time the request was submitted in epoch
+	CallbackURL string   `json:"callback_url"` //URL to send event stream of emoji usage
+	ValidEmojis []string `json:"valid_emojis"` //List of emojis to alert on
+	AuthToken   string   `json:"auth_token"`   //Auth token given by app to auth on callback
+	Expire      int      `json:"expire"`       //Length of time messages can be tracked. Limited to 24h
 }
 
-func (app *app) getMessage(serviceName, messageID string) (message, error) {
+type messageEvent struct {
+	ID        string `json:"id"`         //The unique message ID
+	EmojiUsed string `json:"emoji_used"` //EmojiUsed in event
+	AuthToken string `json:"auth_token"` //Pre-shared auth token given
+	SlackUser string `json:"slack_user"` //Slack user who used the emoji
+}
 
-	if _, ok := app.messages[serviceName]; !ok {
-		return message{}, errMessageNotFound
+func (app *app) getMessage(messageID string) (trackedMessage, error) {
+
+	if _, ok := app.messages[messageID]; !ok {
+		return trackedMessage{}, errMessageNotFound
 	}
 
-	if _, ok := app.messages[serviceName][messageID]; !ok {
-		return message{}, errMessageNotFound
-	}
-
-	message := app.messages[serviceName][messageID]
+	message := app.messages[messageID]
 
 	return message, nil
 }
 
-func (app *app) getMessages(serviceName string) (map[string]message, error) {
+func (app *app) createMessage(callbackURL, authToken string, validEmojs []string) trackedMessage {
 
-	if _, ok := app.messages[serviceName]; !ok {
-		return map[string]message{}, nil
+	messageID := app.generateNewMessageID()
+
+	newMessage := &trackedMessage{
+		ID:          messageID,
+		Submitted:   time.Now().Unix(),
+		CallbackURL: callbackURL,
+		AuthToken:   authToken,
+		ValidEmojis: validEmojs,
 	}
 
-	return app.messages[serviceName], nil
+	app.messages[messageID] = *newMessage
+
+	return *newMessage
 }
 
-func (app *app) createMessage(serviceName string) (messageID string, err error) {
-
-	messageID = generateRandomString(15)
-
-	newMessage := &message{
-		Created: time.Now(),
-	}
-
-	if _, ok := app.messages[serviceName][messageID]; ok {
-		return "", errMessageExists
-	}
-
-	if app.messages[serviceName] == nil {
-		app.messages[serviceName] = make(map[string]message)
-	}
-
-	app.messages[serviceName][messageID] = *newMessage
-
-	return messageID, nil
-}
-
-func (app *app) deleteMessage(serviceName, messageID string) error {
-	if _, ok := app.messages[serviceName][messageID]; !ok {
+func (app *app) deleteMessage(messageID string) error {
+	if _, ok := app.messages[messageID]; !ok {
 		return errMessageNotFound
 	}
 
-	delete(app.messages[serviceName], messageID)
+	delete(app.messages, messageID)
 
 	return nil
 }
@@ -75,14 +69,17 @@ func generateRandomString(length int) string {
 	return fmt.Sprintf("%x", token)
 }
 
-func obfuscateString(str string) string {
-	const maskPercentage = .30
-	strLen := len(str)
+func (app *app) generateNewMessageID() string {
 
-	showLength := float64(strLen) * maskPercentage
-	showLengthRounded := int(showLength)
+	var messageID string
 
-	obfuscatedString := strings.Repeat("x", strLen-showLengthRounded) + str[len(str)-3:]
+	for {
+		messageID := generateRandomString(10)
 
-	return obfuscatedString
+		if _, exists := app.messages[messageID]; !exists {
+			break
+		}
+	}
+
+	return messageID
 }

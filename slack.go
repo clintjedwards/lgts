@@ -49,31 +49,7 @@ func (app *app) getSlackUser(userID string) (*user, error) {
 	return &user{userInfo.Profile.RealName, userInfo.Profile.Email}, nil
 }
 
-//Used to search service for the service with a specific messageID
-// might be useful to consider a global map to store this in instead to speed things up
-func (app *app) getServicebyMessageID(messageID string) (*service, error) {
-	services, err := app.getServices()
-	if err != nil {
-		return &service{}, err
-	}
-
-	referencedService := &service{}
-	for _, service := range services {
-		if (app.messages[service.Name][messageID]) != (message{}) {
-			referencedService = service
-			break
-		}
-	}
-
-	if referencedService.Name == "" {
-		err := fmt.Errorf("Cannot find service with messageID %s", obfuscateString(messageID))
-		return &service{}, err
-	}
-
-	return referencedService, err
-}
-
-//parseMessage grabs all message data to be evaluation. If message data doesn't have required string
+//processSlackMessage grabs all message data to be evaluated. If message data doesn't have required string
 // we return error
 func (app *app) processSlackMessage(event *slack.ReactionAddedEvent) error {
 
@@ -82,35 +58,30 @@ func (app *app) processSlackMessage(event *slack.ReactionAddedEvent) error {
 		return err
 	}
 
-	service, err := app.getServicebyMessageID(messageID)
+	trackedMessage, err := app.getMessage(messageID)
 	if err != nil {
 		return err
 	}
 
-	//Check if user who used the emoji is part of approved list
 	userInfo, err := app.getSlackUser(event.User)
 	if err != nil {
 		err := fmt.Errorf("Cannot find slack user: %s", err)
 		return err
 	}
 
-	if !service.isAuthorizedSlacker(userInfo.email) {
-		err := fmt.Errorf("User %s not authorized to approve messageID %s", userInfo.email, obfuscateString(messageID))
-		return err
+	newEventMessage := messageEvent{
+		ID:        trackedMessage.ID,
+		EmojiUsed: event.Reaction,
+		AuthToken: trackedMessage.AuthToken,
+		SlackUser: userInfo.email,
 	}
 
-	err = service.sendCallbackMessage(messageID, userInfo.email, event.Reaction)
-	if err != nil {
-		err := fmt.Errorf("Couldn't send request to callback URL %s for service %s: %s", service.CallbackURL, service.Name, err)
-		return err
-	}
-
-	log.Printf("emoji %s was applied to message id %s by slack user %s; removing message from queue", event.Reaction, messageID, userInfo.fullName)
-
-	err = app.deleteMessage(service.Name, messageID)
+	err = app.sendEvent(newEventMessage)
 	if err != nil {
 		return err
 	}
+
+	log.Printf("emoji %s was applied to message id %s by slack user %s", event.Reaction, messageID, userInfo.fullName)
 
 	return nil
 }
@@ -128,7 +99,7 @@ func (app *app) runrtm() {
 		case *slack.ReactionAddedEvent:
 			err := app.processSlackMessage(ev)
 			if err != nil {
-				err := fmt.Errorf("Slack: %v", err)
+				err := fmt.Errorf("[Slack] %v", err)
 				log.Println(err)
 				return
 			}

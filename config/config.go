@@ -8,16 +8,7 @@ import (
 type Config struct {
 	ServerURL string `envconfig:"server_url" default:"localhost:8080"`
 	Debug     bool   `envconfig:"debug" default:"false"`
-	Database  *DatabaseConfig
 	Slack     *SlackConfig
-}
-
-//DatabaseConfig refers to database connection settings
-type DatabaseConfig struct {
-	Name     string `envconfig:"database_name" default:"lgts"`
-	URL      string `envconfig:"database_url" default:"localhost:5432"`
-	User     string `envconfig:"database_user" default:"lgts"`
-	Password string `envconfig:"database_password" default:"mysupersecretdbpassword"`
 }
 
 //SlackConfig refers to slack chat connection settings
@@ -30,7 +21,7 @@ type SlackConfig struct {
 func FromEnv() (*Config, error) {
 
 	var config Config
-	err := envconfig.Process("pollinate", &config)
+	err := envconfig.Process("Snark", &config)
 	if err != nil {
 		return nil, err
 	}

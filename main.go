@@ -15,7 +15,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/clintjedwards/lgts/helpers/httputil"
+	"github.com/clintjedwards/snark/helpers/httputil"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
@@ -26,25 +26,12 @@ func main() {
 	app := *newApp()
 	go app.runrtm()
 
-	router.Handle("/services", handlers.MethodHandler{
-		"GET":  http.HandlerFunc(app.getServicesHandler),
-		"POST": http.HandlerFunc(app.createServiceHandler),
+	router.Handle("/track", handlers.MethodHandler{
+		"POST": http.HandlerFunc(app.createMessageHandler),
 	})
 
-	router.Handle("/services/{name}", handlers.MethodHandler{
-		"GET":    http.HandlerFunc(app.getServiceHandler),
-		"PUT":    app.checkAuthorizationHandler(http.HandlerFunc(app.updateServiceHandler)),
-		"DELETE": app.checkAuthorizationHandler(http.HandlerFunc(app.deleteServiceHandler)),
-	})
-
-	router.Handle("/services/{name}/messages", handlers.MethodHandler{
-		"GET":  app.checkAuthorizationHandler(http.HandlerFunc(app.getMessagesHandler)),
-		"POST": app.checkAuthorizationHandler(http.HandlerFunc(app.createMessageHandler)),
-	})
-
-	router.Handle("/services/{name}/messages/{id}", handlers.MethodHandler{
-		"GET":    app.checkAuthorizationHandler(http.HandlerFunc(app.getMessageHandler)),
-		"DELETE": app.checkAuthorizationHandler(http.HandlerFunc(app.deleteMessageHandler)),
+	router.Handle("/track/{messageID}", handlers.MethodHandler{
+		"DELETE": http.HandlerFunc(app.deleteMessageHandler),
 	})
 
 	server := http.Server{
@@ -55,7 +42,9 @@ func main() {
 	}
 
 	server.Handler = httputil.DefaultHeaders(router)
-	server.Handler = handlers.LoggingHandler(os.Stdout, server.Handler)
+	if app.config.Debug {
+		server.Handler = handlers.LoggingHandler(os.Stdout, server.Handler)
+	}
 
 	log.Printf("Starting lgts server on %s\n", app.config.ServerURL)
 	log.Fatal(http.ListenAndServe(app.config.ServerURL, router))

@@ -1,15 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
-	"github.com/clintjedwards/lgts/config"
-	"github.com/clintjedwards/lgts/storage"
-	"github.com/go-pg/pg"
-	"github.com/gorilla/mux"
+	"github.com/clintjedwards/snark/config"
+	"github.com/clintjedwards/snark/helpers/httputil"
 	"github.com/nlopes/slack"
 )
 
@@ -17,10 +15,9 @@ import (
 // that do not and cannot overlap
 type app struct {
 	config         *config.Config
-	db             *pg.DB
 	slackAppClient *slack.Client
 	slackBotClient *slack.Client
-	messages       map[string]map[string]message //Make a map of service names that has a map of message ids
+	messages       map[string]trackedMessage //map with messageID as the key
 }
 
 func newApp() *app {
@@ -30,27 +27,6 @@ func newApp() *app {
 		log.Fatal(err)
 	}
 
-	db := storage.NewPostgresDB(config.Database.User, config.Database.Password, config.Database.URL, config.Database.Name)
-	err = storage.InitDB(db, []interface{}{&service{}})
-	if err != nil {
-		log.Println(err)
-		log.Fatalf("Cannot connect to database %s with user %s", config.Database.URL, config.Database.User)
-	}
-
-	if config.Debug {
-		db.OnQueryProcessed(func(event *pg.QueryProcessedEvent) {
-			query, err := event.FormattedQuery()
-			if err != nil {
-				panic(err)
-			}
-
-			log.Printf("%s %s", time.Since(event.StartTime), query)
-		})
-	}
-
-	log.Printf("Connected to Database: %s@%s/%s",
-		config.Database.User, config.Database.URL, config.Database.Name)
-
 	slackAppClient := slack.New(config.Slack.AppToken)
 	slackBotClient := slack.New(config.Slack.BotToken)
 
@@ -59,35 +35,44 @@ func newApp() *app {
 
 	return &app{
 		config:         config,
-		db:             db,
 		slackAppClient: slackAppClient,
 		slackBotClient: slackBotClient,
-		messages:       make(map[string]map[string]message),
+		messages:       make(map[string]trackedMessage),
 	}
-
 }
 
-func (app *app) checkAuthorizationHandler(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		vars := mux.Vars(request)
-		token := request.Header.Get("Authorization")
+func (app *app) isValidEmoji(messageID, emoji string) bool {
 
-		service, err := app.getService(vars["name"])
-		if err == errServiceNotFound {
-			sendResponse(writer, http.StatusNotFound, fmt.Sprintf("%s: %s", errServiceNotFound.Error(), vars["name"]), true)
-			return
-		} else if err != nil {
-			log.Println(err)
-			sendResponse(writer, http.StatusInternalServerError, "could not retrieve service", true)
-			return
+	for _, validEmoji := range app.messages[messageID].ValidEmojis {
+		if validEmoji == emoji {
+			return true
 		}
+	}
+	return false
+}
 
-		if token != service.AuthToken {
-			err := fmt.Errorf("Incorrect token for service %s", service.Name)
-			sendResponse(writer, http.StatusUnauthorized, err.Error(), true)
-			return
-		}
+func (app *app) sendEvent(messageEvent messageEvent) error {
 
-		next.ServeHTTP(writer, request)
-	})
+	trackedMessage, err := app.getMessage(messageEvent.ID)
+	if err != nil {
+		return err
+	}
+
+	jsonString, _ := json.Marshal(&messageEvent)
+
+	headers := map[string]string{
+		"content-type": "application/json",
+	}
+
+	response, err := httputil.SendHTTPPOSTRequest(trackedMessage.CallbackURL, headers, jsonString, app.config.Debug)
+	if err != nil {
+		return err
+	}
+
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNoContent {
+		err := fmt.Errorf("callback URL did not return correct status code; recieved %d", response.StatusCode)
+		return err
+	}
+
+	return nil
 }

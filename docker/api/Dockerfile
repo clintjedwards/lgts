@@ -2,13 +2,10 @@ FROM golang:1.10 AS build-env
 RUN go get github.com/gorilla/mux && \
     go get github.com/gorilla/handlers && \
     go get github.com/kelseyhightower/envconfig && \
-    go get github.com/go-pg/pg && \
     go get github.com/nlopes/slack && \
     go get github.com/hashicorp/go-retryablehttp && \
     go get github.com/go-ozzo/ozzo-validation && \
-    go get github.com/go-ozzo/ozzo-validation/is && \
-    go get github.com/lib/pq
-
+    go get github.com/go-ozzo/ozzo-validation/is
 
 ADD . /go/src/github.com/clintjedwards/lgts
 WORKDIR /go/src/github.com/clintjedwards/lgts
