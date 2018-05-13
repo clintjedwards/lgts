@@ -69,11 +69,18 @@ func (app *app) processSlackMessage(event *slack.ReactionAddedEvent) error {
 		return err
 	}
 
+	valid := app.isValidEmoji(messageID, event.Reaction)
+	if !valid {
+		err := fmt.Errorf("Emoji %s is not a valid emoji for messageID %s", event.Reaction, messageID)
+		return err
+	}
+
 	newEventMessage := messageEvent{
-		ID:        trackedMessage.ID,
-		EmojiUsed: event.Reaction,
-		AuthToken: trackedMessage.AuthToken,
-		SlackUser: userInfo.email,
+		ID:             trackedMessage.ID,
+		EmojiUsed:      event.Reaction,
+		AuthToken:      trackedMessage.AuthToken,
+		SlackUserName:  userInfo.fullName,
+		SlackUserEmail: userInfo.email,
 	}
 
 	err = app.sendEvent(newEventMessage)

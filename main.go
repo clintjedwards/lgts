@@ -46,6 +46,6 @@ func main() {
 		server.Handler = handlers.LoggingHandler(os.Stdout, server.Handler)
 	}
 
-	log.Printf("Starting lgts server on %s\n", app.config.ServerURL)
-	log.Fatal(http.ListenAndServe(app.config.ServerURL, router))
+	log.Printf("Starting snark server on %s\n", app.config.ServerURL)
+	log.Fatal(http.ListenAndServe(app.config.ServerURL, server.Handler))
 }

@@ -16,10 +16,11 @@ type trackedMessage struct {
 }
 
 type messageEvent struct {
-	ID        string `json:"id"`         //The unique message ID
-	EmojiUsed string `json:"emoji_used"` //EmojiUsed in event
-	AuthToken string `json:"auth_token"` //Pre-shared auth token given
-	SlackUser string `json:"slack_user"` //Slack user who used the emoji
+	ID             string `json:"id"`               //The unique message ID
+	EmojiUsed      string `json:"emoji_used"`       //EmojiUsed in event
+	AuthToken      string `json:"auth_token"`       //Pre-shared auth token given
+	SlackUserEmail string `json:"slack_user_email"` //Slack email of the user who used the emoji
+	SlackUserName  string `json:"slack_user_name"`  //Slack username of the user who used the emoji
 }
 
 func (app *app) getMessage(messageID string) (trackedMessage, error) {
@@ -74,7 +75,7 @@ func (app *app) generateNewMessageID() string {
 	var messageID string
 
 	for {
-		messageID := generateRandomString(10)
+		messageID = generateRandomString(10)
 
 		if _, exists := app.messages[messageID]; !exists {
 			break
