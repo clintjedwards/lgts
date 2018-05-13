@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -52,7 +53,32 @@ func (app *app) createMessageHandler(w http.ResponseWriter, req *http.Request) {
 func (app *app) deleteMessageHandler(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 
-	err := app.deleteMessage(vars["messageID"])
+	trackedMessage, err := app.getMessage(vars["messageID"])
+	if err != nil {
+		sendResponse(w, http.StatusNotFound, "could not find message ID", true)
+		return
+	}
+
+	authInfo := struct {
+		AuthToken string `json:"auth_token"`
+	}{}
+
+	err = httputil.ParseJSON(req.Body, &authInfo)
+	if err != nil {
+		log.Println(err)
+		sendResponse(w, http.StatusBadRequest, errJSONParseFailure.Error(), true)
+		return
+	}
+	req.Body.Close()
+
+	if authInfo.AuthToken != trackedMessage.AuthToken {
+		err := fmt.Errorf("incorrect auth token for messageID: %s; delete failed", trackedMessage.ID)
+		log.Println(err)
+		sendResponse(w, http.StatusUnauthorized, err.Error(), true)
+		return
+	}
+
+	err = app.deleteMessage(vars["messageID"])
 	if err != nil {
 		if err == errMessageNotFound {
 			sendResponse(w, http.StatusNotFound, errMessageNotFound, true)
