@@ -8,12 +8,12 @@ Traditionally, [interactive Slack messages](https://api.slack.com/docs/message-b
 
 This is a problem for applications that want|need to stay completely internal, want to have interactivity, but still want to make use of Slack's awesome messaging platform.
 
-In comes in LGTS. LGTS uses Slack's event stream API to monitor Slack channels that its a member of. When a message recieves an "emoji added" event it scans the messages for a preshared ID registered negotiated earlier with the relevant application. When the ID is found it checks its list of accepted emojis and messages in queue to make sure things adhere to the applications requirements for contact. Once it verifies this is a message that should be acted on, Snark sends a request back to the requesting application, enabling interactivity through emojis.
+In comes in Snark. Snark uses Slack's event stream API to monitor Slack channels that its a member of. When a message recieves an "emoji added" event it scans the messages for a preshared ID registered negotiated earlier with the relevant application. When the ID is found it checks its list of accepted emojis and messages in queue to make sure things adhere to the applications requirements for contact. Once it verifies this is a message that should be acted on, Snark sends a request back to the requesting application, enabling interactivity through emojis.
 
 ## Installation
 
 ```
-go get -u github.com/clintjedwards/lgts
+go get -u github.com/clintjedwards/snark
 ```
 
 ## Configuration
@@ -55,7 +55,7 @@ Example:
 
 ```json
 #Request
-$ http POST https://snark.server.example/track auth_token="somesecret" callback_url="myapp.example/callback" valid_emojis:='["lgts", "wut"]'
+$ http POST https://snark.server.example/track auth_token="somesecret" callback_url="myapp.example/callback" valid_emojis:='["lgtm", "wut"]'
 
 #Response
 HTTP/1.1 201 Created

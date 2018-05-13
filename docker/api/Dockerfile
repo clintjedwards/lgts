@@ -10,7 +10,7 @@ RUN go get github.com/gorilla/mux && \
 ADD . /go/src/github.com/clintjedwards/snark
 WORKDIR /go/src/github.com/clintjedwards/snark
 
-RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /src/lgts
+RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /src/snark
 
 FROM alpine
 WORKDIR /app
