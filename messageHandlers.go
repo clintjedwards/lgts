@@ -12,6 +12,21 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 )
 
+func (app *app) getMessageHandler(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+
+	trackedMessage, err := app.getMessage(vars["messageID"])
+	if err != nil {
+		sendResponse(w, http.StatusNotFound, "could not find message ID", true)
+		return
+	}
+
+	trackedMessage.AuthToken = "[Redacted]"
+
+	sendResponse(w, http.StatusOK, trackedMessage, false)
+	return
+}
+
 func (app *app) createMessageHandler(w http.ResponseWriter, req *http.Request) {
 
 	newMessage := struct {
@@ -31,7 +46,7 @@ func (app *app) createMessageHandler(w http.ResponseWriter, req *http.Request) {
 
 	//Validate user supplied parameters
 	err = validation.Errors{
-		"callback_url": validation.Validate(newMessage.CallbackURL, validation.Required, is.URL),
+		"callback_url": validation.Validate(newMessage.CallbackURL, is.URL),
 		"valid_emojis": validation.Validate(newMessage.ValidEmojis, validation.Required),
 		"auth_token":   validation.Validate(newMessage.AuthToken, validation.Required),
 	}.Filter()

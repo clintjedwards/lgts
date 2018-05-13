@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/nlopes/slack"
 )
@@ -77,15 +78,19 @@ func (app *app) processSlackMessage(event *slack.ReactionAddedEvent) error {
 
 	newEventMessage := messageEvent{
 		ID:             trackedMessage.ID,
+		Submitted:      time.Now().Unix(),
 		EmojiUsed:      event.Reaction,
-		AuthToken:      trackedMessage.AuthToken,
 		SlackUserName:  userInfo.fullName,
 		SlackUserEmail: userInfo.email,
 	}
 
-	err = app.sendEvent(newEventMessage)
-	if err != nil {
-		return err
+	trackedMessage.MessageEvents = append(trackedMessage.MessageEvents, newEventMessage)
+
+	if trackedMessage.CallbackURL != "" {
+		err = app.sendEvent(newEventMessage)
+		if err != nil {
+			return err
+		}
 	}
 
 	log.Printf("emoji %s was applied to message id %s by slack user %s", event.Reaction, messageID, userInfo.fullName)

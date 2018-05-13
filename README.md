@@ -43,13 +43,13 @@ The `DEBUG` environment variable can be turned off and on to control the verbosi
 
 ### **Step 1:** Register a message
 
-The first step is to register a prospective message with snark first. You must provide the following things
+The first step is to register a prospective message with snark first. You can provide the following parameters in a json request to the `/track` route
 
-* callback_url: This is a route to an app that snark will send the emoji events back to. Usually in the form
-  `https://exampleapp.com/callback`.
-* auth_token: This auth token will be passed back to the callback address as a way to verify that the message has
-  come from snark.
-* valid_emojis: A json list of valid emoji strings that snark will send an event for. All other emojis are ignored.
+* **callback_url:** This is a route to an app that snark will send the emoji events back to. Usually in the form
+  `https://exampleapp.com/callback`. This is optional. If not provided Snark will not send event messages back on the callback address. And the calling app will have to detect events by reading get requests from /track/{message_id} route.
+* **auth_token:** This auth token will be passed back to the callback address as a way to verify that the message has
+  come from snark. It is also passed to the delete route to unsubscribe a message.
+* **valid_emojis:** A json list of valid emoji strings that snark will send an event for. All other emojis are ignored.
 
 Example:
 
@@ -90,18 +90,53 @@ Example:
             ...
 ```
 
-### **Step 3:** Receive emoji events on the callback URL
+### **Step 3:** Receive emoji events
 
-Once you've posted the message snark will automatically alert you of any emojis that fit your criteria. You'll get the
+#### On a callback address
+
+If you provided a callback address, once you've posted the message snark will automatically alert you of any emojis that fit your criteria. You'll get the
 following fields as part of a POST request sent to the callback URL you specified
 
-* id: The message ID associated with the event.
-* emoji_used: The text string of the emoji used.
-* auth_token: The auth token associated with the message ID. You should check this to make sure the message came from snark
-* slack_user_email: The slack user's email who sent the event.
-* slack_user_name: The slack user's full name who sent the event.
+Headers
 
-### **Step 4:** Once you've recieved the event you're listening for unsubscribe from the message
+* **snark-auth-token:** The auth token preshared earlier. Use this to make sure the request you've gotten was indeed form snark.
+
+Body
+
+* **id:** The message ID associated with the event.
+* **emoji_used:** The text string of the emoji used.
+* **slack_user_email:** The slack user's email who sent the event.
+* **slack_user_name:** The slack user's full name who sent the event.
+
+#### Via GET requests
+
+If you've chosen not to provide a callback address then you can still recieve the emoji events via a GET request to the `/track/{message_id}` route.
+
+```json
+#Request
+$ http GET localhost:8080/track/d911cb2702245d470c4f
+
+#Resposne
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: *
+Content-Length: 202
+Content-Type: application/json
+Date: Sun, 13 May 2018 21:25:07 GMT
+
+{
+    "callback_url": "",
+    "expire": 0,
+    "id": "d911cb2702245d470c4f",
+    "message_events": null,
+    "submitted": 1526246684,
+    "valid_emojis": [
+        "lgts",
+        "wut"
+    ]
+}
+```
+
+### **Step 4:** Once you've recieved the event you're listening for, unsubscribe from the message
 
 You can do this by sending a delete request like so:
 

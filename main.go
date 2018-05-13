@@ -31,7 +31,12 @@ func main() {
 	})
 
 	router.Handle("/track/{messageID}", handlers.MethodHandler{
+		"GET":    http.HandlerFunc(app.getMessageHandler),
 		"DELETE": http.HandlerFunc(app.deleteMessageHandler),
+	})
+
+	router.Handle("/version", handlers.MethodHandler{
+		"GET": http.HandlerFunc(app.getVersionHandler),
 	})
 
 	server := http.Server{

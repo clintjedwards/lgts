@@ -61,7 +61,8 @@ func (app *app) sendEvent(messageEvent messageEvent) error {
 	jsonString, _ := json.Marshal(&messageEvent)
 
 	headers := map[string]string{
-		"content-type": "application/json",
+		"content-type":     "application/json",
+		"snark-auth-token": trackedMessage.AuthToken,
 	}
 
 	response, err := httputil.SendHTTPPOSTRequest(trackedMessage.CallbackURL, headers, jsonString, app.config.Debug)
@@ -75,4 +76,14 @@ func (app *app) sendEvent(messageEvent messageEvent) error {
 	}
 
 	return nil
+}
+
+func (app *app) getVersionHandler(w http.ResponseWriter, req *http.Request) {
+
+	response := struct {
+		Version string `json:"Version"`
+	}{Version: "0.1.0"}
+
+	sendResponse(w, http.StatusOK, response, false)
+	return
 }
