@@ -7,6 +7,7 @@ import (
 //Config refers to general application configuration
 type Config struct {
 	ServerURL string `envconfig:"server_url" default:"localhost:8080"`
+	Dev       bool   `envconfig:"dev" default:"false"`
 	Debug     bool   `envconfig:"debug" default:"false"`
 	Slack     *SlackConfig
 }

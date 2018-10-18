@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"time"
 
 	"github.com/nlopes/slack"
@@ -66,13 +67,13 @@ func (app *app) processSlackMessage(event *slack.ReactionAddedEvent) error {
 
 	userInfo, err := app.getSlackUser(event.User)
 	if err != nil {
-		err := fmt.Errorf("Cannot find slack user: %s", err)
+		err := fmt.Errorf("cannot find slack user: %s", err)
 		return err
 	}
 
 	valid := app.isValidEmoji(messageID, event.Reaction)
 	if !valid {
-		err := fmt.Errorf("Emoji %s is not a valid emoji for messageID %s", event.Reaction, messageID)
+		err := fmt.Errorf("emoji %s is not a valid emoji for message id %s", event.Reaction, messageID)
 		return err
 	}
 
@@ -84,7 +85,7 @@ func (app *app) processSlackMessage(event *slack.ReactionAddedEvent) error {
 		SlackUserEmail: userInfo.email,
 	}
 
-	trackedMessage.MessageEvents = append(trackedMessage.MessageEvents, newEventMessage)
+	trackedMessage.MessageEvents = append(trackedMessage.MessageEvents, &newEventMessage)
 
 	if trackedMessage.CallbackURL != "" {
 		err = app.sendEvent(newEventMessage)
@@ -98,33 +99,62 @@ func (app *app) processSlackMessage(event *slack.ReactionAddedEvent) error {
 	return nil
 }
 
+// mockrtm generates fake emoji responses at random. Used primarily for testing
+func (app *app) mockrtm() {
+
+	log.Println("dev mode enabled")
+
+	reactionPool := []string{":shrug:", ":+1:", ":-1:"}
+
+	for {
+		for message, info := range app.messages {
+			rand.Seed(time.Now().UnixNano())
+			emoji := reactionPool[rand.Intn(len(reactionPool))]
+
+			info.MessageEvents = append(info.MessageEvents, &messageEvent{
+				Submitted:      time.Now().Unix(),
+				EmojiUsed:      emoji,
+				SlackUserName:  "barack.obama",
+				SlackUserEmail: "barack.obama@usa.com",
+			})
+
+			log.Printf("dev mode: added %s emoji for message %s\n", emoji, message)
+		}
+		time.Sleep(time.Second * 2)
+	}
+}
+
 // runrtm runs slack's real time event stream and listens for reaction events
 func (app *app) runrtm() {
+
+	if app.config.Dev {
+		app.mockrtm()
+		return
+	}
 
 	rtm := app.slackBotClient.NewRTM()
 	go rtm.ManageConnection()
 
-	log.Println("Slack: Starting slack event reader")
+	log.Println("slack: starting slack event reader")
 
 	for msg := range rtm.IncomingEvents {
 		switch ev := msg.Data.(type) {
 		case *slack.ReactionAddedEvent:
 			err := app.processSlackMessage(ev)
 			if err != nil {
-				err := fmt.Errorf("[Slack] %v", err)
+				err := fmt.Errorf("[slack] %v", err)
 				log.Println(err)
-				return
 			}
 
 		case *slack.RTMError:
-			log.Printf("Error: %s\n", ev.Error())
+			log.Printf("error: %s\n", ev.Error())
 
 		case *slack.InvalidAuthEvent:
-			log.Printf("Invalid credentials")
+			log.Printf("invalid credentials")
 			return
 
 		default:
-			// Ignore other events..
+			// Ignore other events
 		}
 	}
 }

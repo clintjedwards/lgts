@@ -21,9 +21,10 @@ func (app *app) getMessageHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	trackedMessage.AuthToken = "[Redacted]"
+	responseMessage := *trackedMessage
+	responseMessage.AuthToken = "[Redacted]"
 
-	sendResponse(w, http.StatusOK, trackedMessage, false)
+	sendResponse(w, http.StatusOK, responseMessage, false)
 	return
 }
 

@@ -110,7 +110,7 @@ Body
 
 #### Via GET requests
 
-If you've chosen not to provide a callback address then you can still recieve the emoji events via a GET request to the `/track/{message_id}` route.
+If you've chosen not to provide a callback address then you can still receive the emoji events via a GET request to the `/track/{message_id}` route.
 
 ```json
 #Request
@@ -136,7 +136,7 @@ Date: Sun, 13 May 2018 21:25:07 GMT
 }
 ```
 
-### **Step 4:** Once you've recieved the event you're listening for, unsubscribe from the message
+### **Step 4:** Once you've received the event you're listening for, unsubscribe from the message
 
 You can do this by sending a delete request like so:
 
@@ -151,6 +151,11 @@ Content-Type: application/json
 Date: Sun, 13 May 2018 03:30:35 GMT
 ```
 
+### Local Testing
+
+The envionrment variable `DEV=true` will enable a mock rtm, allowing the developer to receive message events randomly for all messages registered. No need to set up Slack.
+
+You can run snark with `go run *.go`
 ## Authors
 
 * **Clint Edwards** - [Github](https://github.com/clintjedwards)

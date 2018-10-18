@@ -17,7 +17,7 @@ type app struct {
 	config         *config.Config
 	slackAppClient *slack.Client
 	slackBotClient *slack.Client
-	messages       map[string]trackedMessage //map with messageID as the key
+	messages       map[string]*trackedMessage //map with messageID as the key
 }
 
 func newApp() *app {
@@ -30,14 +30,11 @@ func newApp() *app {
 	slackAppClient := slack.New(config.Slack.AppToken)
 	slackBotClient := slack.New(config.Slack.BotToken)
 
-	slackAppClient.SetDebug(config.Debug)
-	slackBotClient.SetDebug(config.Debug)
-
 	return &app{
 		config:         config,
 		slackAppClient: slackAppClient,
 		slackBotClient: slackBotClient,
-		messages:       make(map[string]trackedMessage),
+		messages:       make(map[string]*trackedMessage),
 	}
 }
 
